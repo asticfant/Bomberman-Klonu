@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="bomberman_klounu.vcxproj" Id="0fbbe3bd-79b3-49d3-a0fb-98bd6caf8bec" />
+</Solution>
