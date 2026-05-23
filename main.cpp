@@ -2,12 +2,12 @@
 #include <SFML/Window.hpp>
 #include <SFML/System.hpp>
 #include <optional>
-#include <vector> 
+#include <vector>
+#include <iostream>
 
 const int ROWS = 15;
 const int COLS = 15;
 const float TILE_SIZE = 40.0f;
-
 
 int gameMap[ROWS][COLS] = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
@@ -27,29 +27,33 @@ int gameMap[ROWS][COLS] = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 };
 
-
-
+// --- SINIFLAR ---
 
 class Player {
 private:
     int x_grid;
     int y_grid;
-    sf::RectangleShape body;
+    sf::Texture playerTexture;
+    std::optional<sf::Sprite> sprite;
 
 public:
-    
     Player(int startX, int startY) {
         x_grid = startX;
         y_grid = startY;
-        body.setSize(sf::Vector2f(TILE_SIZE * 0.8f, TILE_SIZE * 0.8f));
-        body.setFillColor(sf::Color::Blue);
-        body.setOrigin(sf::Vector2f(TILE_SIZE * 0.4f, TILE_SIZE * 0.4f));
+
+        if (playerTexture.loadFromFile("assets/images/player.png")) {
+            sprite.emplace(playerTexture);
+            sprite->setOrigin(sf::Vector2f(playerTexture.getSize().x / 2.0f, playerTexture.getSize().y / 2.0f));
+            sprite->setScale(sf::Vector2f(0.8f, 0.8f));
+        }
+        else {
+            std::cerr << "Oyuncu resmi yuklenemedi! (assets/images/player.png eksik)" << std::endl;
+        }
     }
 
     void move(int dx, int dy) {
         int nextX = x_grid + dx;
         int nextY = y_grid + dy;
-       
         if (gameMap[nextY][nextX] == 0) {
             x_grid = nextX;
             y_grid = nextY;
@@ -57,70 +61,47 @@ public:
     }
 
     void updateVisuals() {
-        body.setPosition(sf::Vector2f(x_grid * TILE_SIZE + TILE_SIZE / 2.0f, y_grid * TILE_SIZE + TILE_SIZE / 2.0f));
+        if (sprite.has_value()) {
+            sprite->setPosition(sf::Vector2f(x_grid * TILE_SIZE + TILE_SIZE / 2.0f, y_grid * TILE_SIZE + TILE_SIZE / 2.0f));
+        }
     }
 
     void draw(sf::RenderWindow& window) {
-        window.draw(body);
+        if (sprite.has_value()) {
+            window.draw(sprite.value());
+        }
     }
 
-    
     void setPosition(int x, int y) { x_grid = x; y_grid = y; }
     int getX() { return x_grid; }
     int getY() { return y_grid; }
 };
 
-
-
-class Explosion {
-private:
-    int x_grid, y_grid;
-    sf::Clock timer;
-    sf::RectangleShape body;
-
-public:
-    Explosion(int x, int y) {
-        x_grid = x;
-        y_grid = y;
-        body.setSize(sf::Vector2f(TILE_SIZE, TILE_SIZE));
-        body.setFillColor(sf::Color(255, 140, 0)); 
-        body.setPosition(sf::Vector2f(x * TILE_SIZE, y * TILE_SIZE));
-    }
-
-    
-    bool isExpired() {
-        return timer.getElapsedTime().asSeconds() > 0.5f;
-    }
-
-    void draw(sf::RenderWindow& window) {
-        window.draw(body);
-    }
-
-    int getX() { return x_grid; }
-    int getY() { return y_grid; }
-};
-
-
-
 class Bomb {
 private:
     bool active;
     int x_grid, y_grid;
-    int range; 
     sf::Clock timer;
-    sf::RectangleShape body;
+
+    sf::Texture bombTexture;
+    std::optional<sf::Sprite> sprite;
 
 public:
     Bomb() {
         active = false;
-        range = 1; 
-        body.setSize(sf::Vector2f(TILE_SIZE * 0.6f, TILE_SIZE * 0.6f));
-        body.setFillColor(sf::Color::Red);
-        body.setOrigin(sf::Vector2f(TILE_SIZE * 0.3f, TILE_SIZE * 0.3f));
+        // UYARIYI BURADA ÇÖZDÜK: Başlangıçta x ve y'ye 0 değerini verdik
+        x_grid = 0;
+        y_grid = 0;
+
+        if (bombTexture.loadFromFile("assets/images/bomb.png")) {
+            sprite.emplace(bombTexture);
+            sprite->setOrigin(sf::Vector2f(bombTexture.getSize().x / 2.0f, bombTexture.getSize().y / 2.0f));
+            sprite->setScale(sf::Vector2f(0.8f, 0.8f));
+        }
     }
 
     void place(int x, int y) {
-        if (active == false) {
+        if (!active) {
             active = true;
             x_grid = x;
             y_grid = y;
@@ -128,60 +109,66 @@ public:
         }
     }
 
-    
-    void checkExplosion(std::vector<Explosion>& explosionsList) {
-        if (active == true && timer.getElapsedTime().asSeconds() >= 3.0f) {
-            active = false; 
+    void checkExplosion(int& score) {
+        if (active && timer.getElapsedTime().asSeconds() >= 3.0f) {
+            active = false;
 
-           
-            explosionsList.push_back(Explosion(x_grid, y_grid));
-
-            
             int dx[] = { 1, -1, 0, 0 };
             int dy[] = { 0, 0, 1, -1 };
 
             for (int d = 0; d < 4; d++) {
-                for (int i = 1; i <= range; i++) {
-                    int nx = x_grid + (dx[d] * i);
-                    int ny = y_grid + (dy[d] * i);
+                int nx = x_grid + dx[d];
+                int ny = y_grid + dy[d];
 
-                    if (gameMap[ny][nx] == 1) {
-                        break;
-                    }
-
-                   
-                    explosionsList.push_back(Explosion(nx, ny));
-
-                    if (gameMap[ny][nx] == 2) {
-                        gameMap[ny][nx] = 0; 
-                        break; 
-                    }
+                if (gameMap[ny][nx] == 2) {
+                    gameMap[ny][nx] = 0;
+                    score += 10;
                 }
             }
         }
     }
 
     void updateVisuals() {
-        if (active) {
-            body.setPosition(sf::Vector2f(x_grid * TILE_SIZE + TILE_SIZE / 2.0f, y_grid * TILE_SIZE + TILE_SIZE / 2.0f));
+        if (active && sprite.has_value()) {
+            sprite->setPosition(sf::Vector2f(x_grid * TILE_SIZE + TILE_SIZE / 2.0f, y_grid * TILE_SIZE + TILE_SIZE / 2.0f));
         }
     }
 
     void draw(sf::RenderWindow& window) {
-        if (active) window.draw(body);
+        if (active && sprite.has_value()) {
+            window.draw(sprite.value());
+        }
     }
 };
 
+// --- ANA FONKSİYON ---
 
 int main() {
-    sf::RenderWindow window(sf::VideoMode({ static_cast<unsigned int>(COLS * TILE_SIZE), static_cast<unsigned int>(ROWS * TILE_SIZE) }), "Bomberman Klonu v0.3 - Sınıflar ve Patlama");
+    sf::RenderWindow window(sf::VideoMode({ static_cast<unsigned int>(COLS * TILE_SIZE), static_cast<unsigned int>((ROWS + 2) * TILE_SIZE) }), "Bomberman - Gorseller ve Skor");
+
+    sf::Texture texGrass, texWall, texBox;
+    texGrass.loadFromFile("assets/images/grass.png");
+    texWall.loadFromFile("assets/images/wall.png");
+    texBox.loadFromFile("assets/images/box.png");
+
     sf::RectangleShape tile(sf::Vector2f(TILE_SIZE, TILE_SIZE));
 
+    // Burada o hataya sebep olan gizli harf tamamen temizlendi.
     Player player(1, 1);
     Bomb myBomb;
 
-    
-    std::vector<Explosion> activeExplosions;
+    int playerScore = 0;
+    sf::Font font;
+    std::optional<sf::Text> scoreText;
+
+    if (font.openFromFile("assets/fonts/arial.ttf")) {
+        scoreText.emplace(font, "Skor: 0", 24);
+        scoreText->setFillColor(sf::Color::White);
+        scoreText->setPosition(sf::Vector2f(10.0f, ROWS * TILE_SIZE + 10.0f));
+    }
+    else {
+        std::cerr << "Yazi tipi bulunamadi! (assets/fonts/arial.ttf eksik)" << std::endl;
+    }
 
     while (window.isOpen()) {
         while (const std::optional<sf::Event> event = window.pollEvent()) {
@@ -208,57 +195,40 @@ int main() {
             }
         }
 
-        
-        myBomb.checkExplosion(activeExplosions);
+        myBomb.checkExplosion(playerScore);
 
-        
-        for (int i = 0; i < activeExplosions.size(); i++) {
-            if (activeExplosions[i].isExpired()) {
-                activeExplosions.erase(activeExplosions.begin() + i);
-                i--;
-            }
-        }
-
-        
-        for (int i = 0; i < activeExplosions.size(); i++) {
-            if (player.getX() == activeExplosions[i].getX() && player.getY() == activeExplosions[i].getY()) {
-                
-                player.setPosition(1, 1);
-            }
-        }
-
-       
         player.updateVisuals();
         myBomb.updateVisuals();
 
-        
+        if (scoreText.has_value()) {
+            scoreText->setString("Skor: " + std::to_string(playerScore));
+        }
+
         window.clear();
 
-       
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 tile.setPosition(sf::Vector2f(j * TILE_SIZE, i * TILE_SIZE));
+
                 if (gameMap[i][j] == 1) {
-                    tile.setFillColor(sf::Color::White);
+                    tile.setTexture(&texWall);
                 }
                 else if (gameMap[i][j] == 2) {
-                    tile.setFillColor(sf::Color(139, 69, 19));
+                    tile.setTexture(&texBox);
                 }
                 else {
-                    tile.setFillColor(sf::Color::Green);
+                    tile.setTexture(&texGrass);
                 }
                 window.draw(tile);
             }
         }
 
-        
-        for (int i = 0; i < activeExplosions.size(); i++) {
-            activeExplosions[i].draw(window);
-        }
-
-       
         myBomb.draw(window);
         player.draw(window);
+
+        if (scoreText.has_value()) {
+            window.draw(scoreText.value());
+        }
 
         window.display();
     }
